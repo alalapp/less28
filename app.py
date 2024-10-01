@@ -25,7 +25,7 @@ def escape_special_characters(text):
     """
     Экранирует специальные символы в тексте.
     """
-   escape_dict = {
+    escape_dict = {
         '&': '&amp;',
         '<': '&lt;',
         '>': '&gt;',
@@ -42,7 +42,6 @@ def escape_special_characters(text):
     return re.sub('|'.join(map(re.escape, escape_dict.keys())),
                   lambda m: escape_dict[m.group()],
                   text)
-
 def get_recent_news(topic):
     url = f"https://newsapi.org/v2/everything?q={topic}&apiKey=73db81ae9b614a06b3badcab2c1cd513"
     response = requests.get(url, timeout=60)
