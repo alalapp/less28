@@ -25,7 +25,7 @@ def escape_special_characters(text):
     """
     Экранирует специальные символы в тексте.
     """
-    escape_dict = {
+   escape_dict = {
         '&': '&amp;',
         '<': '&lt;',
         '>': '&gt;',
@@ -36,7 +36,8 @@ def escape_special_characters(text):
         '\t': '\\t',
         '%': '%%',
         '!': '\\!',
-        '#': '\\#',  # Добавляем экранирование символа решетки
+        '#': '\\#',
+        '.': '\\.',  # Добавляем экранирование точки
     }
     return re.sub('|'.join(map(re.escape, escape_dict.keys())),
                   lambda m: escape_dict[m.group()],
