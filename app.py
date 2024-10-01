@@ -12,8 +12,11 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# Инициализация клиента OpenAI
-client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+# Инициализация клиента OpenAI с таймаутом в 60 секунд
+client = OpenAI(
+    api_key=os.environ["OPENAI_API_KEY"],
+    timeout=60.0  # Устанавливаем таймаут в 60 секунд
+)
 
 class PostRequest(BaseModel):
     topic: str
@@ -57,7 +60,6 @@ def generate_post(topic):
             messages=[{"role": "user", "content": prompt_title}],
             max_tokens=50,
             n=1,
-            request_timeout=60,
             stop=None,
             temperature=0.7,
         )
@@ -71,7 +73,6 @@ def generate_post(topic):
             messages=[{"role": "user", "content": prompt_meta}],
             max_tokens=100,
             n=1,
-            request_timeout=60,
             stop=None,
             temperature=0.7,
         )
@@ -90,7 +91,6 @@ def generate_post(topic):
             max_tokens=2048,
             n=1,
             stop=None,
-            request_timeout=60,            
             temperature=0.7,
         )
         post_content = escape_special_characters(response_post.choices[0].message.content.strip())
