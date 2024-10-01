@@ -35,6 +35,7 @@ def escape_special_characters(text):
         '\r': '\\r',
         '\t': '\\t',
         '%': '%%',
+        '!': '\\!',  # Добавляем экранирование восклицательного знака
     }
     return re.sub('|'.join(map(re.escape, escape_dict.keys())),
                   lambda m: escape_dict[m.group()],
