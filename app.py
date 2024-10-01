@@ -1,16 +1,27 @@
 import os
 import re
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel, Field
 from openai import OpenAI
 import requests
+import logging
+from typing import Optional
+
+# Настройка логирования
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+# Инициализация клиента OpenAI
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 class Topic(BaseModel):
-    topic: str
+    topic: str = Field(..., min_length=1, description="The topic for the blog post")
+
+class GeneratePostRequest(BaseModel):
+    topic: Optional[Topic] = None
+    custom_field: Optional[str] = Field(None, description="Any custom field that Zapier might be sending")
 
 def escape_special_characters(text):
     """
@@ -39,51 +50,71 @@ def get_recent_news(topic):
     return "\n".join(recent_news)
 
 def generate_post(topic):
-    recent_news = get_recent_news(topic)
+    try:
+        recent_news = get_recent_news(topic)
 
-    prompt_title = f"Придумайте привлекательный заголовок для поста на тему: {escape_special_characters(topic)}"
-    response_title = client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt_title}],
-        max_tokens=50,
-        n=1,
-        stop=None,
-        temperature=0.7,
-    )
-    title = escape_special_characters(response_title.choices[0].message.content.strip())
+        prompt_title = f"Придумайте привлекательный заголовок для поста на тему: {escape_special_characters(topic)}"
+        response_title = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt_title}],
+            max_tokens=50,
+            n=1,
+            stop=None,
+            temperature=0.7,
+        )
+        title = escape_special_characters(response_title.choices[0].message.content.strip())
 
-    prompt_meta = f"Напишите краткое, но информативное мета-описание для поста с заголовком: {title}"
-    response_meta = client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt_meta}],
-        max_tokens=100,
-        n=1,
-        stop=None,
-        temperature=0.7,
-    )
-    meta_description = escape_special_characters(response_meta.choices[0].message.content.strip())
+        prompt_meta = f"Напишите краткое, но информативное мета-описание для поста с заголовком: {title}"
+        response_meta = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt_meta}],
+            max_tokens=100,
+            n=1,
+            stop=None,
+            temperature=0.7,
+        )
+        meta_description = escape_special_characters(response_meta.choices[0].message.content.strip())
 
-    prompt_post = f"Напишите подробный и увлекательный пост для блога на тему: {escape_special_characters(topic)}, учитывая следующие последние новости:\n{recent_news}\n\nИспользуйте короткие абзацы, подзаголовки, примеры и ключевые слова для лучшего восприятия и SEO-оптимизации."
-    response_post = client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt_post}],
-        max_tokens=2048,
-        n=1,
-        stop=None,
-        temperature=0.7,
-    )
-    post_content = escape_special_characters(response_post.choices[0].message.content.strip())
+        prompt_post = f"Напишите подробный и увлекательный пост для блога на тему: {escape_special_characters(topic)}, учитывая следующие последние новости:\n{recent_news}\n\nИспользуйте короткие абзацы, подзаголовки, примеры и ключевые слова для лучшего восприятия и SEO-оптимизации."
+        response_post = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt_post}],
+            max_tokens=2048,
+            n=1,
+            stop=None,
+            temperature=0.7,
+        )
+        post_content = escape_special_characters(response_post.choices[0].message.content.strip())
 
-    return {
-        "title": title,
-        "meta_description": meta_description,
-        "post_content": post_content
-    }
+        return {
+            "title": title,
+            "meta_description": meta_description,
+            "post_content": post_content
+        }
+    except Exception as e:
+        logger.error(f"Error in generate_post: {str(e)}")
+        raise
 
 @app.post("/generate-post")
-async def generate_post_api(topic: Topic):
-    generated_post = generate_post(topic.topic)
-    return generated_post
+@app.post("/generate-post/")
+async def generate_post_api(request: Request, generate_request: GeneratePostRequest):
+    logger.debug(f"Received request: {generate_request}")
+    
+    # Логирование полного тела запроса
+    body = await request.body()
+    logger.debug(f"Raw request body: {body}")
+    
+    if generate_request.topic is None and generate_request.custom_field is None:
+        raise HTTPException(status_code=422, detail="Either 'topic' or 'custom_field' must be provided")
+    
+    topic = generate_request.topic.topic if generate_request.topic else generate_request.custom_field
+    
+    try:
+        generated_post = generate_post(topic)
+        return generated_post
+    except Exception as e:
+        logger.error(f"Error generating post: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/heartbeat")
 async def heartbeat_api():
