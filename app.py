@@ -1,11 +1,9 @@
 import os
 import re
-from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel, Field
+from fastapi import FastAPI, HTTPException
 from openai import OpenAI
 import requests
 import logging
-from typing import Optional
 
 # Настройка логирования
 logging.basicConfig(level=logging.DEBUG)
@@ -15,13 +13,6 @@ app = FastAPI()
 
 # Инициализация клиента OpenAI
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-
-class Topic(BaseModel):
-    topic: str = Field(..., min_length=1, description="The topic for the blog post")
-
-class GeneratePostRequest(BaseModel):
-    topic: Optional[Topic] = None
-    custom_field: Optional[str] = Field(None, description="Any custom field that Zapier might be sending")
 
 def escape_special_characters(text):
     """
@@ -97,23 +88,17 @@ def generate_post(topic):
 
 @app.post("/generate-post")
 @app.post("/generate-post/")
-async def generate_post_api(request: Request, generate_request: GeneratePostRequest):
-    logger.debug(f"Received request: {generate_request}")
-    
-    # Логирование полного тела запроса
-    body = await request.body()
-    logger.debug(f"Raw request body: {body}")
-    
-    if generate_request.topic is None and generate_request.custom_field is None:
-        raise HTTPException(status_code=422, detail="Either 'topic' or 'custom_field' must be provided")
-    
-    topic = generate_request.topic.topic if generate_request.topic else generate_request.custom_field
-    
+async def generate_post_api(topic: str):
     try:
+        logger.debug(f"Received topic: {topic}")
+
+        if not topic.strip():
+            raise HTTPException(status_code=422, detail="Topic cannot be empty")
+
         generated_post = generate_post(topic)
         return generated_post
     except Exception as e:
-        logger.error(f"Error generating post: {str(e)}")
+        logger.error(f"Error processing request: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/heartbeat")
